@@ -62,6 +62,7 @@ TT.sediment = TT.wl - TT.Value_m;
 interval = 100;
 x = TT.allDT(1:interval:end);
 y = TT.sediment(1:interval:end);
+q = TT.Qin(1:interval:end); q(q>0.5e4) = NaN;
 % scatter(x, y, 1, 'filled', 'MarkerFaceAlpha', 0.1)
 gscatter(x, y, categorical(TT.SourceFile(1:interval:end)));
 % xlim([datetime(2025, 7, 25), datetime(2025, 10, 15)])
@@ -69,7 +70,7 @@ gscatter(x, y, categorical(TT.SourceFile(1:interval:end)));
 ax = gca;
 % ax.YDir = 'reverse';
 fig = gcf;
-% setFig(fig, 18, 6, 9, 'T')
+% setFig(fig, 18, 6, 9, 'Tyyaxis
 xlabel('time')
 ylabel('depth [m]')
 % print(gcf, '~/Desktop/raja_ts_pruned_2020509.png', '-dpng', '-r600');
