@@ -1,4 +1,6 @@
-fn = 'dat/testInSenbon/251000_test_dev/20251025140436.sgy';
+config = readyaml("config.yaml");
+fn = config.fnSegy;  
+
 [data, depth, dt_us, meta] = read3LSBSegy(fn);
 imagesc(size(data, 1), depth, data);
 set(gca, 'YDir', 'reverse');

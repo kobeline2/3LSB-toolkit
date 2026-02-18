@@ -1,6 +1,8 @@
+%% available at least for Ooi, Raja
 %% 設定
-rootFolder = "~/Dropbox/localcode/read3LSB/dat/ooi/251001"; 
-outputMAT  = "merged_timeseries.mat"; % 保存したい場合
+config = readyaml("config.yaml");
+rootFolder = config.dirLog;  
+outputMAT  = fullfile(rootFolder, "merged_timeseries.mat"); 
 
 %% .logファイルを再帰的に探索
 files = dir(fullfile(rootFolder, '**', '*.log'));
@@ -43,15 +45,29 @@ fprintf('連結時系列を %s に保存しました（行数: %d）\n', outputM
 %% plot
 interval = 100;
 x = TT.allDT(1:interval:end);
-y = 0-TT.depth(1:interval:end);
+y = 0-TT.Value_m(1:interval:end);
 % scatter(x, y, 1, 'filled', 'MarkerFaceAlpha', 0.1)
 gscatter(x, y, categorical(TT.SourceFile(1:interval:end)));
-% xlim([datetime(2025, 9, 3), datetime(2025, 9, 15)])
-% ylim([0, 12])
+xlim([datetime(2025, 9, 1), datetime(2026, 3, 1)])
+% ylim([-15, 0])
 ax = gca;
-ax.YDir = 'reverse';
+% ax.YDir = 'reverse';
 fig = gcf;
 % setFig(fig, 18, 6, 9, 'T')
 xlabel('time')
 ylabel('depth [m]')
 % print(gcf, '~/Desktop/raja_ts_pruned_2020509.png', '-dpng', '-r600');
+
+%% plot interval
+% 期間（10/20〜10/30）で抽出
+t1 = datetime(2025,10,21,0,0,0);
+t2 = datetime(2025,11,2 ,23,59,59);
+
+TTsub = TT(timerange(t1, t2, "closed"), :);
+
+% scatterプロット（timetableならそのまま渡せる）
+figure
+scatter(TTsub.allDT, 0-TTsub.Value_m, 1, 'filled')   % 6は点サイズ
+grid on
+xlabel('DateTime')
+ylabel('Value\_m')
