@@ -1,0 +1,517 @@
+% コンパイル: lualatex 3LSB_acoustics.tex
+\documentclass[11pt]{ltjsarticle}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage[margin=25mm]{geometry}
+\usepackage{graphicx}
+\usepackage{enumitem}
+
+\title{3LSB（PDR-1200W）の音響モデル\\\large 送信エコーから SEGY データまで，そして堆積物濃度の逆問題}
+\author{}
+\date{\today}
+
+\newcommand{\unit}[1]{\,\mathrm{#1}}
+
+\begin{document}
+\maketitle
+
+\section{目的}
+固定単ビーム測深器 3LSB（千本電機 PDR-1200W, 400\,kHz）が記録する SEGY ウォーターカラム波形について，
+\begin{enumerate}[nosep]
+  \item 送信パルスがどう伝播・反射し，受信・変換されて SEGY の数値になるか（\textbf{順方向モデル}），
+  \item その数値から後方散乱強度・堆積物濃度を復元する道筋（\textbf{逆問題}），
+  \item 共同研究グループ（ADCP 多周波後方散乱で浮遊砂を測る流儀）が狙うこと，
+\end{enumerate}
+を数式で整理する．記号は表~\ref{tab:sym} に一覧する．
+
+\section{記号}
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lll}
+\toprule
+記号 & 意味 & 本機の値 \\
+\midrule
+$f_0,\ \omega_0=2\pi f_0$ & 送信周波数 & $400\unit{kHz}$ \\
+$c$ & 水中音速 & $1500\unit{m/s}$ \\
+$\lambda=c/f_0$ & 波長 & $3.75\unit{mm}$ \\
+$\tau$ & パルス長（バースト幅） & $100\unit{\mu s}$ \\
+$\Delta r=c\tau/2$ & 距離分解能（パルス律速） & $7.5\unit{cm}$ \\
+$\Delta t,\ \Delta z=c\Delta t/2$ & 格納サンプル間隔と深さ刻み & $20\unit{\mu s},\ 1.5\unit{cm}$ \\
+$\theta$ & ビーム半値全角（$-3$ dB） & $1.8$–$2.5^\circ$（理論／公称） \\
+$\psi$ & 等価ビーム立体角 & $\approx5.7\times10^{-4}\unit{sr}$（理論，円形ピストン） \\
+$r,\ z$ & 送受波器からの距離・深さ & --- \\
+$M(r)$ & 浮遊砂質量濃度 & 未知（推定対象） \\
+$a,\ x=ka$ & 粒子半径・無次元波数 ($k=2\pi/\lambda$) & --- \\
+$\rho_s$ & 砂粒密度 & $\approx 2650\unit{kg/m^3}$ \\
+$\alpha_w,\ \alpha_s$ & 水・堆積物の吸収係数 [dB/m] & $\alpha_s=\alpha_s(M)$ \\
+$\mathrm{TL}(r)$ & 片道伝播損失 [dB]（拡散＋吸収） & $20\log_{10}r+\alpha r$ \\
+$p_0,\ p_{\mathrm{ref}}$ & 送信音圧振幅（軸上 $1$ m）・基準音圧 & 未測定／$1\unit{\mu Pa}$ \\
+$\mathrm{SL},\ \mathrm{RS}$ & ソースレベル・受信感度 [dB] & 未測定／最大 $140\unit{dB}$（可変 $\sim\!70\unit{dB}$） \\
+$B,\ Q$ & 帯域幅・送受波器の共振の鋭さ & $\sim\!10$–$22\unit{kHz}$／$18$ \\
+$g_{\mathrm{STC}}(r)$ & STC（TVG）ゲイン [dB] & \textbf{3LSB では未適用}（実測確認） \\
+$G_0$ & 手動／自動の固定ゲイン [dB] & 可変域 $\sim 70\unit{dB}$ \\
+$\kappa,\ x_0$ & ADC スケール・背景オフセット & 基準 $\approx3.0$–$3.3\unit{V}$／$x_0\approx0.3$ \\
+$x(r)$ & SEGY 格納値 & 背景 $\sim\!0.3$／上限 $3.0$ 飽和 \\
+\bottomrule
+\end{tabular}
+\caption{記号と本機（PDR-1200W）の値．}
+\label{tab:sym}
+\end{table}
+
+\section{送信}
+
+\subsection{トーンバースト}
+送受波器（音を出し，また受ける素子＝トランスデューサ）は，1 回の計測で\textbf{トーンバースト}を発する．
+トーンバーストとは，\emph{単一周波数の正弦波を短い時間 $\tau$ だけ切り出した「ピッ」という音の塊}である
+（周波数 $f_0$ の波を $\tau$ 秒間だけ ON にしたもの）：
+\begin{equation}
+p_T(t)=p_0\cos(\omega_0 t),\qquad 0\le t\le \tau,\qquad \omega_0=2\pi f_0 .
+\end{equation}
+$f_0=400\unit{kHz}$ は\textbf{中心周波数}，$\tau=100\unit{\mu s}$ は\textbf{パルス長（バースト幅）}，
+$\omega_0$ は角周波数（$2\pi f_0$，単位 rad/s），$p_T(t)$ は時刻 $t$ の送信音圧，$p_0$ はその振幅（\S\ref{ssec:SL} で定義）である．
+1 バーストに含まれる波の数は $f_0\tau=400000\times100\times10^{-6}=40$ 波．
+\emph{比較}：鳴り続ける音を連続波（CW），周波数を時間とともに掃引する音を CHIRP と呼ぶが，
+本機は「$40$ 波だけの単一周波数バースト」なので，そのどちらでもない．
+
+\subsection{帯域 $B$ と $Q$ 値}
+無限に続く正弦波だけが「完全な単一周波数」であり，\textbf{有限の長さ $\tau$ で切ると周波数は少し幅をもって広がる}．
+その広がりが\textbf{帯域幅 $B$}（単位 Hz）で，目安は
+\begin{equation}
+B\sim\frac{1}{\tau}=\frac{1}{100\unit{\mu s}}=10\unit{kHz}\qquad(\text{短いパルスほど }B\text{ は広い}).
+\end{equation}
+一方\textbf{$Q$ 値}（quality factor，無次元）は送受波器の\emph{共振の鋭さ}を表し，
+\begin{equation}
+B\approx\frac{f_0}{Q}\ \Rightarrow\ Q=18\ \text{なら}\ B\approx\frac{400\unit{kHz}}{18}\approx22\unit{kHz}.
+\end{equation}
+$Q$ が大きいほど共振が鋭く（帯域が狭く，余韻＝リンギングが長い），小さいほど広帯域で速く減衰する．
+$f_0=400\unit{kHz}$ に対し $B$ は $10$〜$22\unit{kHz}$ 程度で，中心周波数の数\%にすぎない．
+よって本機は\textbf{ほぼ単一周波数（狭帯域）}とみなせ，これが「CHIRP（広帯域）ではない」と言える根拠である．
+
+\subsection{ソースレベル $\mathrm{SL}$ と音の「大きさ」の測り方}
+\label{ssec:SL}
+\textbf{$p_0$ とは}，送受波器から\emph{ビーム軸上・距離 $1\unit{m}$ の点}で測った送信音圧の振幅（単位 Pa）である．
+なぜ $1\unit{m}$ かというと，素子のすぐ近く（近距離音場）は音圧が複雑に乱れるため，音響では
+\emph{出力を「$1\unit{m}$ に換算した値」で表す}のが約束だからである（近距離場の外側にとった標準の基準点）．
+
+音の大きさは桁が大きく変わるので，\textbf{デシベル（dB）}という対数の物差しで表す．水中音響では
+基準音圧 $p_{\mathrm{ref}}=1\unit{\mu Pa}\ (=10^{-6}\unit{Pa})$ を $0\unit{dB}$ とし，\textbf{ソースレベル}（音源の強さ）を
+\begin{equation}
+\mathrm{SL}=20\log_{10}\frac{p_0}{p_{\mathrm{ref}}}\qquad[\text{dB re }1\,\mu\text{Pa @ }1\,\text{m}]
+\end{equation}
+と定義する．これは装置の「声の大きさ」に当たる．係数が $20\log_{10}$ なのは音圧（振幅量）だからで，
+音圧が $10$ 倍で $+20\unit{dB}$，$2$ 倍で約 $+6\unit{dB}$ になる．
+
+\emph{本機での状況}：送信の電気駆動電圧は 490 Vp-p と分かっているが，実際に水中へ出る
+\textbf{音圧 $p_0$（したがって $\mathrm{SL}$）は未測定}である．このため後述の逆問題で $\mathrm{SL}$ は未知数として残り，
+送受波器の受信感度とともに千本電機に確認中である．
+
+\section{伝播（送信パルスが距離 $r$ まで進む間）}
+送信された音は水中を\emph{外向きに広がりながら}進む．その間に振幅が減る原因は 2 つ ── \textbf{幾何拡散}と\textbf{吸収}である．
+
+\subsection{幾何拡散（球面拡散）}
+点状の音源から出た音は球面状に広がる．送信した音響パワーは一定なので，半径 $r$ の球の表面積 $4\pi r^2$ に\emph{薄く引き伸ばされる}．
+したがって単位面積あたりの強度（パワー密度）$I$ は
+\begin{equation}
+I(r)\propto\frac{1}{r^2}\qquad(\text{エネルギー保存：}\ 4\pi r^2\,I=\text{一定}).
+\end{equation}
+音圧振幅 $p$ は強度の平方根に比例する（$I\propto p^2$）ので，
+\begin{equation}
+p(r)\propto\frac{1}{r}.
+\end{equation}
+これが入射音圧につく $1/r$ の因子である（基準 $1\unit{m}$ の振幅 $p_0$ を使うと $p\simeq p_0/r$，$r$ は m）．
+
+\paragraph{指向性がある場合（本機）．}
+実際の送受波器はビーム（半値全角 $2.5^\circ$）を持つので，音は全球 $4\pi r^2$ ではなく，
+ビームの立体角 $\Omega$ が張る断面 $\Omega r^2$ に広がる．しかしこの面積も $r^2$ に比例するため，
+遠方（far field）では $I\propto 1/r^2$，$p\propto 1/r$ は\textbf{変わらない}．
+指向性は「$4\pi\!\to\!\Omega$」という\emph{定数}の違いにすぎず，ソースレベル $\mathrm{SL}$
+（指向性利得 $\mathrm{DI}=10\log_{10}(4\pi/\Omega)$）と，第\ref{sec:scatter}節の等価ビーム立体角 $\psi$ に吸収される．
+ただし $1/r$ 則が成り立つのは\emph{遠方場}に限る：近距離音場の目安は $R_0\approx D^2/(4\lambda)$ で，
+ビーム幅 $2.5^\circ$ から口径を $D\approx 1.02\,\lambda/\theta\approx 9\unit{cm}$ と概算すると $R_0\approx 0.5\unit{m}$．
+底（$\sim 7\unit{m}$）や水柱の大半は far field にあり，本節の理論はそのまま有効である
+（口径 $D$ の実値はビームパターンで確定）．
+
+\subsection{吸収（減衰）}
+媒質は音響エネルギーを少しずつ熱に変える．このため振幅は距離とともに\textbf{指数関数的}に減る：
+\begin{equation}
+p(r)\propto e^{-\xi r},
+\end{equation}
+$\xi$ は\textbf{減衰係数}（単位 Np/m，ネーパ毎メートル）である．減衰は dB で表すことも多く，両者は
+\begin{equation}
+\alpha\,[\mathrm{dB/m}]=8.686\,\xi\,[\mathrm{Np/m}]\qquad(8.686=20\log_{10}e)
+\end{equation}
+で換算する．減衰は 2 つの寄与の和 $\xi=\xi_w+\xi_s$：
+\begin{itemize}[nosep]
+  \item $\xi_w$：\textbf{水自身の吸収}．粘性・熱緩和による．\emph{周波数とともに急増}し（おおよそ $\propto f^2$），
+        $400\unit{kHz}$・淡水・常温では $\alpha_w\approx 0.03$–$0.04\unit{dB/m}$ 程度（往復 $\sim\!60\unit{m}$ で約 $2\unit{dB}$）．
+  \item $\xi_s$：\textbf{浮遊砂による減衰}．粒子の散乱と粘性損失による．\emph{濃度 $M$ にほぼ比例}し（$\alpha_s\approx\zeta M$），
+        高濃度では音が届かなくなる（信号消失）．この項が後述の逆問題を反復計算にする原因である．
+\end{itemize}
+
+\subsection{まとめ：片道の入射音圧と「伝播損失」}
+拡散と吸収を合わせると，距離 $r$ の散乱体に届く音圧（\emph{片道}）は
+\begin{equation}
+\boxed{\;p_{\mathrm{inc}}(r)=\frac{p_0}{r}\,\exp\!\big[-(\xi_w+\xi_s)\,r\big]\;}
+\end{equation}
+dB の物差しでは，これを\textbf{片道伝播損失}（transmission loss）
+\begin{equation}
+\mathrm{TL}(r)=\underbrace{20\log_{10} r}_{\text{拡散}}+\underbrace{\alpha\,r}_{\text{吸収}}\qquad[\mathrm{dB}]
+\end{equation}
+と書く（$r$ は m）．\textbf{エコーは行って戻る}ので，散乱体で反射したあと再び $1/r$ と吸収を受ける．
+すなわち往復では損失が 2 倍（距離 $2r$ 分）かかり，受信エコーレベルには $-2\,\mathrm{TL}$ が現れる．
+これが次節 \S\ref{sec:scatter} のソナー方程式に出てくる $-2(\alpha_w+\alpha_s)r$ と拡散項の由来である．
+
+\section{散乱（音が散乱体に当たって返ってくる）}
+\label{sec:scatter}
+ここでは 2 種類の散乱を扱う：水中に漂う\textbf{多数の微粒子}による\emph{体積散乱}（浮遊砂）と，
+\textbf{底という 1 枚の強い反射面}による反射（ターゲット反射）である．
+
+\paragraph{記法の約束（小文字と大文字）．}
+音響では，\emph{物理量そのもの（線形）}を\textbf{小文字}，\emph{それを dB にしたもの}（「〜レベル」「〜ストレングス」）を
+\textbf{大文字}で書く慣習がある．本稿の $s_v$（線形，単位 m$^{-1}$）と $S_v=10\log_{10}s_v$（dB）は\textbf{中身は同じ量}で，
+表し方が違うだけである．$\mathrm{SL},\mathrm{TL},\mathrm{TS},\mathrm{EL}$ も同様に「dB で測った量（レベル）」である．
+
+\subsection{浮遊砂による体積散乱（$s_v$ と $S_v$）}
+パルスが照らす\emph{薄い殻}（厚み $c\tau/2$，ビーム断面）には多数の浮遊粒子が含まれ，各粒子がわずかに音を後方へ返す．
+その殻の体積は
+\begin{equation}
+V(r)=\psi\,r^2\cdot\frac{c\tau}{2}
+\end{equation}
+（$\psi$＝等価ビーム立体角，$c\tau/2$＝パルスが切り出す殻の厚み＝距離分解能）．
+
+1 個の粒子が音をどれだけ返すかは\textbf{後方散乱断面積} $\sigma_{bs}$（単位 m$^2$，「音を捕まえて送り返す実効的な面積」）で表す．
+\emph{単位体積あたり}の後方散乱の強さ（\textbf{体積後方散乱係数}）$s_v$ は，数密度 $n$ [m$^{-3}$] を用いて
+\begin{equation}
+s_v=n\,\langle\sigma_{bs}\rangle\qquad[\mathrm{m^{-1}}].
+\end{equation}
+数密度は質量濃度 $M$ と粒径から $n=M\big/\big(\rho_s\langle\tfrac{4}{3}\pi a^3\rangle\big)$ で結ばれ，
+$\sigma_{bs}$ を粒径 $a$ と\textbf{形状関数} $f(x)$（$x=ka$，散乱効率を表す無次元量）で書くと，まとめて
+\begin{equation}
+s_v(r)=\frac{3\,M(r)}{4\,\rho_s}\,\frac{\langle a^2 f^2\rangle}{\langle a^3\rangle}
+\quad\text{[Thorne \& Hanes, 2002]}
+\label{eq:sv}
+\end{equation}
+となる（$\langle\cdot\rangle$ は粒径分布の平均，プレファクタは $f$ の規格化の流儀に依存）．\textbf{要点}：
+\begin{itemize}[nosep]
+  \item $s_v\propto M$：\emph{濃度が濃いほど強く返る}（だから濁度の指標になる）．
+  \item $f(x)$ に粒径・周波数依存が入る（細粒ほど弱い：第\ref{sec:params}節）．
+\end{itemize}
+これを dB で表したものが\textbf{体積後方散乱強度} $S_v=10\log_{10}s_v$ である（小文字 $s_v$ の dB 版＝同じ量）．
+
+\subsection{体積残響のソナー方程式}
+送信（$\mathrm{SL}$）→ 往復伝播（§4）→ 殻の中の散乱（$S_v$ と体積 $V$）→ 受信，を 1 本にまとめると，
+受信エコーレベル（\textbf{EL}，dB）は
+\begin{equation}
+\boxed{\;\mathrm{EL}(r)=\mathrm{SL}+S_v(r)\;-\;20\log_{10} r\;-\;2(\alpha_w+\alpha_s)\,r\;+\;10\log_{10}\!\Big(\psi\,\frac{c\tau}{2}\Big)\;}
+\label{eq:sonar}
+\end{equation}
+各項の意味：
+\begin{itemize}[nosep]
+  \item $\mathrm{SL}$：音源の強さ（§3）．
+  \item $-2(\alpha_w+\alpha_s)r$：\emph{往復}の吸収損失（§4，行き帰りで 2 倍）．
+  \item $S_v$：単位体積あたりどれだけ返すか（$=10\log_{10}s_v$）．
+  \item $10\log_{10}(\psi\,c\tau/2)$：殻の体積 $V=\psi r^2\cdot c\tau/2$ のうち $r$ に依らない定数部分．
+  \item $-20\log_{10}r$：\textbf{ここがポイント}．往復の球面拡散は $-40\log_{10}r$ だが，散乱する殻の体積が
+        $V\propto r^2$（$+20\log_{10}r$）で増えるので，差し引き\emph{正味} $-20\log_{10}r$ になる．
+\end{itemize}
+
+\paragraph{なぜ $S_v$ は「足し算」か．}
+$S_v$ は\emph{エコーを生み出す側}の量だからである．ソナー方程式は「送った音が往復してどれだけの大きさで戻るか
+（受信レベル EL）」の\textbf{収支}であり，$S_v$ は\emph{散乱体がどれだけ音を返すか＝エコーの源}を表す．
+散乱体が多い・強いほど戻りは大きいので $+S_v$．これは底面の $+\mathrm{TS}$ と\textbf{まったく同じ役割}である
+（反射が強いほど echo は大きい）．一方，浮遊砂が\emph{経路上で音を減らす}働き（減衰）は別物で，
+$-2\alpha_s r$ として\textbf{引き算}で入っている．すなわち\textbf{同じ砂が逆符号で二役}を担う：
+\emph{ターゲットとしては $+S_v$（信号源）}，\emph{障害物としては $-2\alpha_s r$（損失）}．
+収支で書くと $\mathrm{EL}=\mathrm{SL}-2\,\mathrm{TL}+\big(S_v+10\log_{10}V\big)$ で，$S_v$ は「出費」ではなく「戻り（収入）」側にある．
+高濃度では両者が競合し，やがて減衰が勝って信号が飽和・消失する（減衰法・濁度流での信号消失の原理）．
+
+\paragraph{$\mathrm{TL}$ と $\mathrm{EL}$ の違い（道の損失 vs 戻りの結果）．}
+どちらも dB の「レベル」だが役割は対照的である．\textbf{$\mathrm{TL}$（伝播損失）}は\emph{経路でどれだけ弱るか}を表す
+\textbf{損失}で，媒質と幾何（距離・吸収）だけで決まり，音源 $\mathrm{SL}$ にも標的 $S_v/\mathrm{TS}$ にも\emph{依存しない}（片道で定義，エコーには $2\,\mathrm{TL}$）．
+一方\textbf{$\mathrm{EL}$（受信エコーレベル）}は\emph{実際に返ってくるエコーの大きさ}という\textbf{結果}で，
+音源・経路・標的の\emph{すべて}を含む，装置が実測する量（最終的に SEGY 値になる）である．
+\emph{使い分け}：$\mathrm{EL}$ は\textbf{観測量}（測って解釈する対象），$\mathrm{TL}$ は\textbf{補正の道具}．
+逆問題では，測った $\mathrm{EL}$ に $2\,\mathrm{TL}$ を\emph{足し戻して}距離・吸収を打ち消し，標的の量を取り出す：
+\begin{equation}
+S_v=\mathrm{EL}-\mathrm{SL}+2\,\mathrm{TL}(r)-10\log_{10}V .
+\end{equation}
+装置の STC（TVG）は，この $\mathrm{TL}$ をハード側で先に補償する仕組み（遠いほどゲインを上げて損失を相殺）に他ならない．%
+\textbf{ただし本機（3LSB）では STC は適用されていない}（千本電機回答，かつ実データで水柱背景がレンジに依らず一定であることを確認．\S\ref{ssec:gain}）．%
+したがって本機の記録には距離損失 $2\,\mathrm{TL}$ がそのまま残り，距離補償はすべて解析側（逆問題）で行う．
+
+\subsection{底面とターゲットストレングス $\mathrm{TS}$}
+底は「広がった水中の粒子群」ではなく\textbf{1 枚の強い反射面}なので，体積散乱ではなく\textbf{ターゲット反射}として扱う．
+その強さが\textbf{ターゲットストレングス} $\mathrm{TS}$：
+\begin{equation}
+\mathrm{TS}=10\log_{10}\frac{\sigma_{bs}}{4\pi}\qquad[\mathrm{dB}].
+\end{equation}
+\textbf{言葉での意味}：$\mathrm{TS}$ は「その物体が\emph{音をどれだけ強く反射して返すか}」を dB で表した\textbf{反射の強さ}である．
+平たく言えば，\emph{距離 $1\unit{m}$ で見たとき，当たった音に対して返ってくる音がどれだけ強いか}．
+$\mathrm{TS}$ が大きい（$0\unit{dB}$ に近い・正）ほど強く返る：平らで硬い底ほど高 $\mathrm{TS}$，柔らかい泥や小さな物ほど低 $\mathrm{TS}$．
+（$S_v$ が\emph{単位体積あたり}の散乱なのに対し，$\mathrm{TS}$ は\emph{1 つの物体}の反射，という対比で覚えるとよい．）
+
+底エコーのレベルは
+\begin{equation}
+\mathrm{EL}_{\mathrm{bed}}(r_b)=\mathrm{SL}-40\log_{10} r_b-2(\alpha_w+\alpha_s)r_b+\mathrm{TS}.
+\end{equation}
+拡散項が $-40\log_{10}r_b$（体積散乱の $-20$ ではない）なのは，\textbf{底は 1 つのターゲットで，体積のように $r^2$ で増えないため，
+往復の球面拡散がそのまま効く}からである．底反射は非常に強く，本機では値が $3.0$ に\textbf{飽和（クリップ）}する（定量化不可の領域）．
+（厳密には底は粗く広がった界面なので面後方散乱強度で扱うが，ここでは強い反射を 1 つの強ターゲットとみなす近似である．）
+
+\section{受信から SEGY 格納まで（順方向モデル）}
+ここまでで「散乱体が返すエコー（$\mathrm{EL}$）」が決まった．装置はこれを
+\textbf{電圧 $\to$ 増幅 $\to$ 検波 $\to$ デジタル化 $\to$ スケール／クリップ}の順に処理して SEGY の数値 $x$ にする．1 段ずつ追う．
+
+\subsection{受信：音圧 $\to$ 電圧（受信感度 $\mathrm{RS}$）}
+戻ってきたエコー音圧 $p_r$ は，送受波器（マイクの役）で電圧 $v$ に変換される．変換の効率が\textbf{受信感度} $\mathrm{RS}$
+（「音圧あたり何ボルト出るか」）で，dB で表すと電圧レベルは $\mathrm{EL}+\mathrm{RS}$ となる．
+本機の受信感度は最大 $140\unit{dB}$（千本電機回答）だが，実値は確認中である．
+
+\subsection{増幅：固定ゲイン $G_0$（本機は STC なし）}
+\label{ssec:gain}
+電圧は増幅される．一般に echo sounder のゲインは固定ゲイン $G_0$ と距離依存ゲイン（STC/TVG）の和
+$G(r)=G_0+g_{\mathrm{STC}}(r)$ から成り，STC は \S\ref{sec:scatter} の距離損失 $2\,\mathrm{TL}$ をハード側で先に補償する仕組み
+（遠いほどゲインを上げて echo を揃える）である．汎用機としての PDR-1200W には STC 機能があり，曲線は近 $\sim21\unit{dB}\to$ 遠 $\sim58\unit{dB}$（約 $37\unit{dB}$ 上昇）．
+
+\textbf{ただし本機（3LSB）の収録系では STC は適用されていない}（千本電機回答：「3LSB で使用している受信器では STC は掛けておらず，全てリニア」）．
+これは実データでも確認できる：水柱の背景レベルはレンジに依らず一定（近 $1$–$3\unit{m}$ と遠 $15$–$30\unit{m}$ で比 $1.00$，$+0\unit{dB}$．
+STC があれば遠方で $+37\unit{dB}$ 級に増大するはず）であった．したがって
+\begin{equation}
+G(r)=G_0\qquad(\text{定数，距離補償なし}).
+\end{equation}
+\textbf{帰結}：記録値には固定ゲイン $G_0$ のみが乗り，距離による減衰 $2\,\mathrm{TL}$ は\emph{未補償のまま残る}．
+定量化（逆問題）では $G_0$ と $\kappa$ を外したうえで，$2\,\mathrm{TL}$ を\emph{すべて解析側で}足し戻す（\S\ref{sec:inverse}）．
+
+\subsection{検波：包絡線（位相を捨てる）}
+増幅後，\textbf{包絡線検波}を行う：$400\unit{kHz}$ で振動する信号から\emph{振幅（包絡線）}だけを取り出す．
+本機ではアナログ受信回路で\textbf{信号が飽和（クリップ）するまで増幅し，ダイオードで包絡線検波}している（千本電機回答）．
+数式では解析信号 $\tilde v$ の絶対値 $A(r)=|\tilde v(r)|$ で，\textbf{位相（搬送波の山谷）は捨てられる}．
+これはナイキストの観点とも整合する：格納サンプリングは $50\unit{kHz}$（$\Delta t=20\unit{\mu s}$）で，$400\unit{kHz}$ の生波形に必要な
+$800\unit{kHz}$ を大きく下回るため，そもそも生波形は表現できず\emph{検波後の振幅}を記録するほかない（実データが全て正値であることとも合う）．
+
+\subsection{デジタル化：ADC（サンプリング）}
+包絡線を一定間隔 $\Delta t$ で数値化（ADC）する．深さ刻みは $\Delta z=c\,\Delta t/2=1.5\unit{cm}$ で，
+$n$ 番目のサンプルは深さ $r_n=n\,\Delta z$ に対応する（格納は $50\unit{kHz}$＝$1.5\unit{cm}$，\texttt{.log} の測深値と照合して確認済み）．
+\emph{注意}：このウォーターカラムを収録しているのは\textbf{別途用意した収録用 ADC}であり，PDR-1200W 内部の ADC とは別物である
+（千本電機回答：PDR 内部の AD 結果は記録紙に出すのみで保存されない）．千本電機が言う内部 ADC の $60\unit{kHz}$（$1.25\unit{cm}$）は
+\emph{測深・記録紙用}で，本収録系の $50\unit{kHz}$（$1.5\unit{cm}$）とは独立である（かつての「レート不一致」はこれで解消）．
+
+\subsection{スケールとクリップ：SEGY 格納値}
+最後に ADC が電圧を数値化して保存する：
+\begin{equation}
+x_n=\mathrm{clip}\!\big(\kappa\,A(r_n)+x_0,\,0,\,X_{\max}\big),\qquad X_{\max}=3.0 .
+\end{equation}
+$\kappa$ は ADC の counts$\to$電圧換算で，\textbf{PDR-1200W 内部に固定の書き出し係数はない}（千本電機回答）．
+上限 $3.0$ は\textbf{受信回路のアナログ飽和（クリップ）}が ADC 基準電圧（$\approx3.0$–$3.3\unit{V}$）付近に対応したもので，強い底反射はここに張り付き定量化できない．
+また実データの水柱背景は\textbf{レンジに依らず一定の $x_0\approx0.3$}（直流オフセット／ノイズ床）であり，定量化の前にこの背景を差し引く必要がある．
+
+\subsection{まとめ：順方向の全式}
+以上を dB でまとめると，SEGY 値は（本機は STC なし $g_{\mathrm{STC}}\equiv0$，背景 $x_0$ を含めて）
+\begin{equation}
+\boxed{\;x(r)=\mathrm{clip}\!\left(\kappa\cdot 10^{\,[\mathrm{EL}(r)+\mathrm{RS}+G_0]/20}+x_0,\ 0,\ 3.0\right)\;}
+\label{eq:forward}
+\end{equation}
+読み方：$\mathrm{EL}$（§5 の echo）に $\mathrm{RS}$ を足して電圧へ，固定ゲイン $G_0$ を足して増幅（\textbf{距離依存の STC は本機では掛からない}），
+$10^{[\cdot]/20}$ で dB$\to$線形（振幅）に直し，$\kappa$ でスケール，背景 $x_0$ を足し，$3.0$ でクリップ．$\mathrm{EL}(r)$ は式\eqref{eq:sonar}．
+$\mathrm{EL}$ には距離損失 $2\,\mathrm{TL}$ が含まれ，\emph{ハード補償されていない}ので記録値は遠方ほど素直に弱る．
+これが「発信→反射→受信→変換→SEGY」の全鎖である．
+
+\section{本システムの具体パラメータと散乱領域}
+\label{sec:params}
+ここでは「\textbf{どんな大きさの粒子がよく見えるか}」を，無次元パラメータ $ka$ で整理する．
+
+\subsection{無次元パラメータ $ka$（粒子の大きさ vs 波長）}
+波数 $k=2\pi/\lambda=1.68\times10^{3}\unit{rad/m}$（$\lambda=3.75\unit{mm}$）を使い，粒子半径 $a$ との積
+\begin{equation}
+x=ka=\frac{2\pi a}{\lambda}
+\end{equation}
+を作る．これは\emph{粒子の大きさが波長の何倍か}（おおよそ粒子の周長 ÷ 波長）を表す\textbf{ただ 1 つの指標}で，
+粒子がどう音を散乱するかは，ほぼ $x$ だけで決まる．$x$ が小さい＝粒子が波長よりずっと小さい．
+
+\subsection{2 つの散乱領域（レイリー／幾何）}
+$x$ の大小で散乱の振る舞いが 2 つに分かれる：
+\begin{center}\small
+\begin{tabular}{lll}
+\toprule
+ & レイリー領域（$x\ll1$） & 幾何領域（$x\gtrsim1$） \\
+\midrule
+粒子と波長 & 粒子 $\ll$ 波長 & 粒子 $\gtrsim$ 波長 \\
+形状関数 $f$ & $\propto x^2$（急に立ち上がる） & ほぼ一定 \\
+断面積 $\sigma_{bs}$ & $\propto a^6 f_0^4$（激しく依存） & $\propto a^2$（幾何断面） \\
+散乱の強さ & 非常に弱い & 強い \\
+\bottomrule
+\end{tabular}
+\end{center}
+レイリー領域では，1 個の粒子の後方散乱断面積が $\sigma_{bs}\propto a^6 f_0^4$（サイズの 6 乗・周波数の 4 乗）と
+\textbf{激しく}効く ── 小さな粒子は極端に弱く，少し大きい粒子が戻りを支配する（「空が青い」のと同じ $f^4$ 依存）．
+両領域の境目 $x=1$ は
+\begin{equation}
+a=\frac{1}{k}=\frac{\lambda}{2\pi}\approx 0.6\unit{mm}\quad(\text{直径}\sim1.2\unit{mm}，粗砂)．
+\end{equation}
+
+\subsection{本機（$400\unit{kHz}$）への意味}
+$\lambda=3.75\unit{mm}$ なので：
+\begin{itemize}[nosep]
+  \item \textbf{細粒（シルト，$a\sim10\unit{\mu m}$）}：$x\approx0.017\ll1$ → 深いレイリー領域．$\sigma_{bs}\propto a^6$ で\emph{極端に弱い}．
+  \item \textbf{砂（$a\gtrsim0.6\unit{mm}$）}：$x\gtrsim1$ → 幾何領域，\emph{強く・周波数依存が小さい}．
+\end{itemize}
+よって $400\unit{kHz}$ 単一周波数は\textbf{砂寄りに感度}を持ち，濁度流が運ぶ細粒分は弱くしか映らない．
+これが「\emph{相対}的な濁度の指標」までは行けても「\emph{絶対}濃度」には校正や多周波が要る理由の 1 つである（第\ref{sec:inverse}節）．
+
+\subsection{縦分解能とサンプリング（目盛り vs にじみ）}
+2 つの「刻み」を混同しないこと：
+\begin{itemize}[nosep]
+  \item \textbf{格納刻み} $\Delta z=c\Delta t/2=1.5\unit{cm}$：深さの\emph{目盛り}（ADC, \S6）．
+  \item \textbf{距離分解能} $\Delta r=c\tau/2=7.5\unit{cm}$：エコーの\emph{にじみ}（パルス長 $\tau$ で決まる）．
+\end{itemize}
+分解能 $7.5\unit{cm}$ に対し目盛りが $1.5\unit{cm}$ なので\textbf{約 5 倍オーバーサンプリング}（隣接サンプルは相関し，独立な情報は約 5 点に 1 点）．
+
+\subsection{ビームの形と等価ビーム立体角 $\psi$}
+\label{ssec:beam}
+送受波器は音を\emph{全方向}にではなく，\textbf{真下向きの細いビーム}にして出す（この性質を\textbf{指向性}，directivity という）．
+丸い振動子の場合，ビームの形は理論で決まっていて，\textbf{円形ピストン}（circular piston）の\textbf{エアリーパターン}（Airy pattern）と呼ばれる
+（数式は第 1 種ベッセル関数 $J_1$ を使う．形は \S\ref{sec:params} の $ka$＝「振動子の大きさ ÷ 波長」だけで決まる）．
+イメージは懐中電灯の光に近く，\textbf{中心が最も強く外へ向かって弱まる}鋭い鉛筆状のビームである．覚えるべきは 3 語だけ：
+\begin{itemize}[nosep]
+  \item \textbf{ビーム幅（半値全角，half-power beamwidth）}：中心から強さが半分（$-3\unit{dB}$）になる角度の全幅．本機は\textbf{約 $1.8$–$2.5^\circ$}（理論 $1.84^\circ$／公称 $2.5^\circ$，1994 実測図で確定）．非常に鋭い．
+  \item \textbf{サイドローブ（sidelobe）}：主ビームの外に漏れる弱い「こぼれ光」．最初のものは主ビームより $-17.6\unit{dB}$（約 $1/57$）下で，通常は無視できる（この $-17.6\unit{dB}$ は一様円形ピストンの\emph{決まった値}なので，実測図の半径目盛りの\emph{較正点}に使える）．
+  \item \textbf{等価ビーム立体角 $\psi$（equivalent beam solid angle）}：上のビーム形を「もし\emph{一様な細い円錐}だったらどれだけの立体角か」に置き換えた\textbf{たった 1 つの数}（単位 ステラジアン sr）．ソナー方程式やサンプル体積で「ビームの細さ」を代表させる量．
+\end{itemize}
+本機（口径 $120\unit{mm}$，$400\unit{kHz}$，$ka\approx100$）のエアリーパターンを全角度で積算すると
+\begin{equation}
+\boxed{\;\psi\approx5.7\times10^{-4}\unit{sr}\;}
+\end{equation}
+（$\approx-32.4$ dB re sr．参考：指向性指数 $\mathrm{DI}\approx40\unit{dB}$，第 1 ヌル＝ビームが消える角度は $\pm2.18^\circ$）．
+なお実測ビーム幅が公称 $2.5^\circ$ なら（有効口径が $120\unit{mm}$ より小さい場合）$\psi$ は約 $1.85$ 倍になるので，最終値は実測図のヌル位置で確定する．
+
+\subsection{サンプル体積（1 サンプルが代表する水の量）}
+1 つのサンプルが代表する水の体積は，\textbf{殻の厚み $c\tau/2$ × ビームの細さ $\psi$ × 距離$^2$}で決まる：
+\begin{equation}
+V_{\mathrm{cell}}(r)=\psi\,r^2\cdot\frac{c\tau}{2}
+\;\xrightarrow{\,r=7\unit{m}\,}\; 5.7\times10^{-4}\times7^2\times0.075\approx 2.1\unit{L}
+\end{equation}
+（$r=7\unit{m}$ でフットプリント径 $\sim22\unit{cm}$）．これが「音響サンプリングの解釈」＝共同研究グループが気にしていた量である．
+\textbf{補足}：以前の「$-3\unit{dB}$ の円錐を一様とみなす」概算（$5.5\unit{L}$）は約 $2.6$ 倍の過大評価で，$\psi$ を使うのが正しい．
+
+\section{逆問題：SEGY 値 $\to$ 後方散乱 $\to$ 濃度}
+\label{sec:inverse}
+順方向（\S6）の逆をたどる：測った SEGY 値 $x(r)$ からゲイン等を外して受信振幅に戻し，さらに伝播・散乱を補正して濃度 $M$ を取り出す．
+（飽和した底のサンプルは使えないので，水柱の\emph{非飽和域}のみが対象．）
+
+\subsection{ステップ 1：SEGY 値 $\to$ 受信振幅（背景・ゲイン・スケールを外す）}
+まず一定の背景 $x_0\approx0.3$ を引き，受信感度 $\mathrm{RS}$，固定ゲイン $G_0$，スケール $\kappa$ を割り戻す
+（\textbf{本機は STC なしなので $g_{\mathrm{STC}}$ の逆補正は不要}）：
+\begin{equation}
+V_{\mathrm{rms}}(r)=\frac{x(r)-x_0}{\kappa\,10^{\,[\mathrm{RS}+G_0]/20}} .
+\end{equation}
+ここで肝心なのは，本機は距離補償（STC）をしていないため，\textbf{距離損失 $2\,\mathrm{TL}$ が依然 $V_{\mathrm{rms}}(r)$ の中に丸ごと残っている}点である．
+次のステップでこの拡散 $1/(\psi r)$ と吸収 $e^{-2r(\alpha_w+\alpha_s)}$ を\emph{解析側で}打ち消す（\S\ref{sec:scatter} の「ゲインを外す」操作に相当）．
+
+\subsection{ステップ 2：受信振幅 $\to$ 濃度（ABS 方程式を解く）}
+浮遊砂の \textbf{ABS 方程式}（式\eqref{eq:sonar}・\eqref{eq:sv} を電圧で書き直したもの）は
+\begin{equation}
+V_{\mathrm{rms}}(r)=\frac{k_t\,k_s}{\psi\,r}\,\sqrt{M(r)}\;e^{-2r(\alpha_w+\alpha_s)},\qquad
+k_s^2=\frac{\langle a^2 f^2\rangle}{\rho_s\langle a^3\rangle}.
+\end{equation}
+各因子の意味：$k_t$＝装置定数（音源・受信感度），$k_s$＝粒子定数（粒径・形状関数），$1/(\psi r)$＝拡散，
+$\sqrt{M}$＝濃度（\emph{強度}$\propto M$ なので\emph{振幅}$\propto\sqrt{M}$；\S\ref{sec:scatter}），$e^{-2r(\alpha_w+\alpha_s)}$＝往復減衰．
+$M$ について解くと
+\begin{equation}
+\boxed{\;M(r)=\left[\frac{\psi\,r\,V_{\mathrm{rms}}(r)}{k_t\,k_s}\right]^2 e^{\,4r(\alpha_w+\alpha_s(M))}\;}
+\label{eq:M}
+\end{equation}
+
+\subsection{なぜ反復計算になるか（鶏と卵）}
+右辺の堆積物減衰 $\alpha_s$ は\emph{濃度 $M$ に比例}する（\S4 の $\xi_s$）．つまり
+\textbf{$M$ を知るには $\alpha_s$ が要り，$\alpha_s$ を知るには $M$ が要る}（鶏と卵）．そこで\textbf{反復}で解く：
+\begin{enumerate}[nosep]
+  \item $\alpha_s=0$ と仮定して $M(r)$ を近距離から計算，
+  \item その $M$ から $\alpha_s(M)$ を更新し，
+  \item 収束するまで (1)(2) を繰り返す．
+\end{enumerate}
+近距離は減衰が小さく信頼でき，遠方ほど誤差が累積する点に注意．
+
+\subsection{必要な量}
+\begin{center}\small
+\begin{tabular}{lll}
+\toprule
+量 & 内容 & 入手状況 \\
+\midrule
+$k_t$（$\mathrm{SL},\mathrm{RS}$） & 装置定数（送受感度） & $\mathrm{RS}$ 最大 $140\unit{dB}$／$\mathrm{SL}$ 未測定 \\
+$\kappa,\ x_0$ & ADC スケール・背景 & 基準 $\approx3.0$–$3.3\unit{V}$／$x_0\approx0.3$ \\
+$G_0$ & 現場の固定ゲイン値 & 記録が必要 \\
+$g_{\mathrm{STC}}(r)$ & TVG 曲線 & \textbf{3LSB では未適用}（補正不要） \\
+$k_s$ & 粒子形状関数・粒径 & 採水／多周波で推定 \\
+$\alpha_w$ & 水の吸収 & 計算可（$f,T,S$） \\
+$\alpha_s(M)$ & 堆積物減衰 & 反復で解く \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{本ツールが実装している範囲：相対 $S_v$（\texttt{rangeCompensate.m}）}
+\label{ssec:impl}
+逆問題の全鎖（本節）のうち，\textbf{絶対の目盛りが要らない部分}＝\emph{相対}の体積後方散乱までは，
+未確定の定数（$\mathrm{SL},G_0,k_s$）が無くても計算できる．本ツールはここまでを実装している．
+本機の記録は\textbf{リニア・STC なし}（\S\ref{ssec:gain}）なので手順は単純で，\textbf{背景を引いて往復伝播損失 $2\,\mathrm{TL}$ を足し戻すだけ}である：
+\begin{equation}
+\boxed{\;S_v^{\mathrm{rel}}(r)=\underbrace{20\log_{10}\!\big(x(r)-x_0\big)}_{\text{背景を引いた振幅}}
++\underbrace{20\log_{10} r+2\alpha_w r}_{\text{$2\,\mathrm{TL}$ を足し戻す（拡散＋吸収）}}\;}
+\label{eq:relsv}
+\end{equation}
+各項と実装の対応：
+\begin{itemize}[nosep]
+  \item $x(r)-x_0$：記録値から一定背景 $x_0$（直流／ノイズ床，実測 $\approx0.3$）を引く．\S\ref{sec:inverse} ステップ 1 の $\kappa\,10^{[\mathrm{RS}+G_0]/20}$ から\textbf{未知の定数倍を省いた相対版}（相対なので定数倍は効かない）．
+  \item $+20\log_{10}r$：体積散乱の片道幾何拡散（式\eqref{eq:sonar} の $-20\log_{10}r$）を打ち消す．\textbf{STC が無い}ため，この距離補償は\emph{すべてソフト側で}行う．
+  \item $+2\alpha_w r$：往復の水吸収を打ち消す．$\alpha_w$ は淡水式（Francois \& Garrison 1982）で $400\unit{kHz}$，$10\,^\circ\mathrm{C}$ で $\approx0.053\unit{dB/m}$．
+  \item \textbf{ノイズ床 $\sigma$}：$\sigma=1.4826\,\mathrm{MAD}(x-x_0)$ を表示の下限にする．$\sigma$ 未満の画素は距離依存の\emph{検出限界ランプ}に乗り，\textbf{この床を超えた画素だけが意味のある濁度}になる．
+\end{itemize}
+\texttt{rangeCompensate.m} が式\eqref{eq:relsv} を計算し，\texttt{plotWaterColumn.m} が既定でこの相対 $S_v$ の断面と鉛直プロファイルを描く（\texttt{opts.rangeComp=false} で生 dB に戻る）．プロファイルの\textbf{中央値カーブが検出限界（ノイズ床）}で，これを超える所が濁度である．
+
+\paragraph{あえて\emph{やっていない}こと．}
+前掲「必要な量」の未確定量を入れていない：装置定数 $k_t$（$\mathrm{SL},\mathrm{RS}$）・現場 $G_0$・粒子定数 $k_s$ を省くので，得られるのは\textbf{絶対濃度ではなく相対値}（$\sqrt{M}$ に比例する量）である．堆積物減衰 $\alpha_s$ の反復（前述の鶏と卵）も低濃度を仮定して省いている．
+
+\paragraph{絶対への道．}
+千本会談で $\mathrm{SL}$（$\to k_t$）と現場 $G_0$ が判明すれば，式\eqref{eq:relsv} に\emph{一定のオフセットを足すだけ}で絶対スケールに乗る．さらに採水で $k_s$ が決まれば，式\eqref{eq:M} の濃度 $M(r)$ に到達する．
+
+\section{共同研究グループの狙い：多周波インバージョンと土砂フラックス}
+
+\subsection{なぜ単一周波数では足りないか}
+1 つの周波数では式が 1 本しか立たないのに，未知数は\textbf{濃度 $M$ と粒径 $a$ の 2 つ}ある
+（\S\ref{sec:params} のとおり後方散乱は両方に依存）．よって 1 周波数だけでは $(M,a)$ を分離できない（不定）．
+
+\subsection{多周波で $(M,a)$ を解く}
+複数の周波数 $f_i$ で測ると，周波数ごとに式が立ち，連立できる：
+\begin{align}
+\text{後方散乱法:}&\quad s_v(f_i)=M\,K_b(f_i,a)\quad(\text{戻りの\emph{強さ}}),\\
+\text{減衰法:}&\quad \alpha_s(f_i)=M\,\xi(f_i,a)\quad(\text{レンジ方向の\emph{減り方}＝対数傾き}).
+\end{align}
+2 つは独立な手がかり（前者は echo の大きさ，後者は距離による弱まりの速さ）なので，$\ge 2$ 周波数で併用すると
+$(M,a)$ を同時に・頑健に推定できる．これが ADCP 多周波後方散乱で培われた流儀である．
+
+\subsection{土砂フラックスと総流入量}
+最終目的はフラックス（単位時間に通る土砂量）とその時間積分：
+\begin{equation}
+\Phi(t)=\int_A M(\mathbf{r},t)\,u(\mathbf{r},t)\,dA,\qquad
+W=\int_{\text{濁度流通過}}\Phi(t)\,dt .
+\end{equation}
+すなわち\textbf{濃度（校正後方散乱）}$\times$\textbf{流速 $u$（ADCP）}$\times$\textbf{断面}を時間積分して総土砂流入量 $W$ を得る．
+\emph{流速 $u$ は単ビーム測深器では測れない}ため，ここで ADCP が不可欠になる（両者を組み合わせる理由）．
+
+\section{本システムの位置づけ}
+PDR-1200W は\textbf{単一 400\,kHz・包絡線（位相なし）・STC とゲインが内包・底反射は 3.0 クリップ}．
+したがって（i）位相情報がないのでドップラー／パルス圧縮は不可，（ii）1 周波数なので $(M,a)$ 分離不可，
+（iii）絶対 backscatter 化には $k_t,\kappa,G_0$ の入手と\textbf{採水・濁度計による現場校正}が必須，
+（iv）クリップ域（底）は定量不可．
+一方で\textbf{できること}は明確：底面・界面の追跡，水柱の\emph{相対}後方散乱の時系列（濁度イベント検出），
+水位データによる標高補正．共同研究の定量パイプラインへ寄与するには，上記の装置定数の入手・手動ゲインの記録・
+現場校正，可能なら多周波化が筋道となる．
+
+\begin{thebibliography}{9}
+\bibitem{TH2002} Thorne, P.D., Hanes, D.M. (2002). A review of acoustic measurement of small-scale sediment processes. \emph{Continental Shelf Research}, 22, 603--632.
+\bibitem{MC} Medwin, H., Clay, C.S. (1998). \emph{Fundamentals of Acoustical Oceanography}. Academic Press.
+\bibitem{Gartner2004} Gartner, J.W. (2004). Estimating suspended solids concentrations from backscatter intensity \dots \emph{Marine Geology}, 211, 169--187.
+\bibitem{Guerrero} Guerrero, M., et al. Multi-frequency acoustics for suspended sediment concentration and grain size in rivers.
+\bibitem{Sassi2012} Sassi, M.G., Hoitink, A.J.F., Vermeulen, B. (2012). Impact of sound attenuation by suspended sediment on ADCP backscatter calibration. \emph{Water Resources Research}, 48, W09520.
+\end{thebibliography}
+
+\end{document}

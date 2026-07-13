@@ -1,8 +1,14 @@
-function [dt, val, src] = read3LSBRaja(fn)
+function [dt, val, src] = readLogFile(fn)
+    % .log を1ファイル読み, 時刻 dt / 水深 val[m] / 由来ファイル src を返す。
+    % 形式（全サイト共通）: "YYYY/MM/DD, HH:MM:SS, 11.190, m"
+    % 例外: "0001/01/01, 00:00:00" のプレースホルダ行はファイル名の時刻から1秒刻みで補完。
+
     % 初期化（返すべき出力を空に）
     dt  = [];
     val = [];
     src = [];
+
+    fn = char(fn);   % string で渡されても fileparts/インデックスが効くように
 
     % --- ファイル名から基準時刻を取得（yyyyMMddHHmmss.log の最初の14桁）
     [~, fname, ~] = fileparts(fn);

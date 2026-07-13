@@ -1,11 +1,20 @@
-function [data, depth, dt_us, meta] = read3LSBSegy(fn)
+function [data, depth, dt_us, meta, traceTimes] = read3LSBSegy(fn)
+% READ3LSBSEGY  SEGY ファイルを読む. 
+%   [data, depth, dt_us, meta]            通常呼び出し
+%   [data, depth, dt_us, meta, traceTimes]  各トレースの datetime も取得
+%
+%   data       : [nSamples × nTraces]  float32
+%   depth      : [nSamples × 1]        深度 [m]（音速 1500m/s）
+%   dt_us      : サンプリング間隔 [μs]
+%   traceTimes : [nTraces × 1]         datetime（トレースヘッダの年/doy/時/分/秒）
 fid = fopen(fn, 'r', 'ieee-le');   % ★ endian を little に変更
 assert(fid>0,'File open error');
 
 % ---------------- 1. ヘッダ部 ----------------
 textRaw = fread(fid, 3200, 'uint8=>char')';                    % 3200B
 % ASCII/EBCDIC 判定（最初の 80byte が制御コード中心なら EBCDIC）
-if all(textRaw(1:80) < 32), textRaw = ebcdic2ascii(textRaw); end
+% 注: EBCDIC は未対応（ebcdic2ascii は未実装）. 3LSB の SEGY は ASCII なので通常発火しない. 
+if all(textRaw(1:80) < 32), textRaw = ebcdic2ascii(textRaw); end %#ok<UNRCH>
 meta.textHeader = string(reshape(textRaw,80,[]).');            % 40×1
 % ── 前処理: 40×1 string 配列を持っている前提 ──
 lines = strtrim(meta.textHeader);         % 余分な空白を除去
@@ -46,8 +55,13 @@ meta.binaryHeader = struct( ...
 
 
 % ---------------- 3. signal block ----------------
-waves   = {};
-dt_vals = [];
+waves    = {};
+dt_vals  = [];
+traceYr  = [];  % トレース時刻（年/doy/時/分/秒）
+traceDoy = [];
+traceH   = [];
+traceMin = [];
+traceSec = [];
 while ~feof(fid)
     th = fread(fid, 240, 'uint8=>uint8');
     if numel(th)<240, break, end
@@ -56,12 +70,23 @@ while ~feof(fid)
     dt_i = typecast(th(117:118), 'uint16');
     dt_vals(end+1,1) = double(max(dt_i,1));    % 0→1 μs 仮置き
 
+    % トレースヘッダの時刻（bytes 157-166, little-endian int16）
+    traceYr( end+1,1) = double(typecast(th(157:158),'int16'));
+    traceDoy(end+1,1) = double(typecast(th(159:160),'int16'));
+    traceH(  end+1,1) = double(typecast(th(161:162),'int16'));
+    traceMin(end+1,1) = double(typecast(th(163:164),'int16'));
+    traceSec(end+1,1) = double(typecast(th(165:166),'int16'));
+
     samples = fread(fid, ns_i, 'single');      % little-endian IEEE float32
     if numel(samples)~=ns_i, break, end
 
     waves{end+1,1} = samples;                  %#ok<AGROW>
 end
 fclose(fid);
+
+% トレース時刻を datetime に変換
+traceTimes = datetime(traceYr, 1, 1) + days(traceDoy - 1) ...
+           + hours(traceH) + minutes(traceMin) + seconds(traceSec);
 
 % 行列化（同じまま）
 nsMax = max(cellfun(@numel, waves));

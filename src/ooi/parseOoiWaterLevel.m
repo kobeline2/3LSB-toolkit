@@ -1,5 +1,6 @@
-function TTw = parse_ooi_waterlevel(csvfile)
-% 大井ダムから提供されたのooi_diaryyyyymm.csvを読む. 
+function TTw = parseOoiWaterLevel(csvfile)
+% 大井ダムから提供される ooi_diaryYYYYMM.csv（日報の毎時水位）を読む。
+% 注: 現状のメインパイプライン(applyWaterLevel)では未使用。将来用に保持。
 
     L = readlines(csvfile, 'Encoding','UTF-8');
     L = strtrim(L);
