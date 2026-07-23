@@ -9,6 +9,14 @@ function TT = readLogFolder(logDir)
         error("readLogFolder:noFiles", "ログファイルが見つかりません: %s", logDir);
     end
 
+    % 同名ファイルは最大サイズの1つだけ読む.
+    % （納品が累積型で同じログが複数フォルダに重複するため.
+    %   ログは追記型なので, 同名なら大きい方が完全版）
+    [~, order] = sort([files.bytes], 'descend');
+    files = files(order);
+    [~, ia] = unique({files.name}, 'stable');
+    files = files(ia);
+
     allDT  = datetime.empty(0,1);
     allVal = [];
     allSrc = strings(0,1);

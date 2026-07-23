@@ -26,12 +26,17 @@ function cfg = siteConfig(site)
             cfg.segyDir       = fullfile(cfg.root, "sgy");
             cfg.needsWaterLevel = false;
 
-        case "raja"      % Rajamandala ダム
+        case "raja"      % Rajamandala ダム（固定設置. 2026-07 から SEGY あり）
             cfg.name          = "Rajamandala";
             cfg.root          = fullfile(dataRoot, "raja");
             cfg.logDir        = cfg.root;
             cfg.segyDir       = fullfile(cfg.root, "sgy");
             cfg.needsWaterLevel = false;
+            % 2026-07-23 回収分は装置時計が1日遅れ（現地確認）→ +1日補正.
+            % range は装置時刻. 次回回収でも遅れが残っていれば range を伸ばす/行を足す.
+            cfg.clockShifts = struct( ...
+                'range', [datetime(2026,6,9) datetime(2026,7,23)], ...
+                'shift', days(1));
 
         case "ngoiphat"  % NgoiPhat ダム（データ配置後にフォルダ名を確認）
             cfg.name          = "NgoiPhat";
@@ -43,6 +48,8 @@ function cfg = siteConfig(site)
         otherwise
             error("siteConfig:unknownSite", "未知のサイト: %s", site);
     end
+
+    if ~isfield(cfg, 'clockShifts'), cfg.clockShifts = []; end   % 既定: 時計補正なし
 
     cfg.site      = lower(string(site));
     cfg.mergedMat = fullfile(cfg.root, "merged_timeseries.mat");
