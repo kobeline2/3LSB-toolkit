@@ -13,6 +13,7 @@ fprintf("サイト: %s\n", cfg.name);
 TT = readLogFolder(cfg.logDir);
 TT.Properties.RowTimes = applyClockShift(TT.Properties.RowTimes, cfg.clockShifts);
 TT = sortrows(TT);                % 時計補正で順序が入れ替わる可能性に備え再ソート
+TT = removeFrozen(TT);           % 6 時間以上同じ値が続く区間（装置の値の固着）を除く
 fprintf("読込: %d 行\n", height(TT));
 
 %% 大井ダムのみ：水位で補正して堆積層厚 sediment を計算
@@ -30,6 +31,13 @@ save(cfg.mergedMat, "TT");
 plotTimeSeries(TT, yvar, reverseY);
 % xlim([datetime(2026,4,1) datetime(2026,5,1)])   % 必要に応じて範囲指定
 % print(gcf, fullfile(cfg.root,"ts.png"), "-dpng", "-r600")
+
+%% 雨量と重ねて表示（雨量データのあるサイトのみ. 現状 raja）
+if strlength(cfg.rainDir) > 0
+    rain = readRajaRainfall(cfg.rainDir);
+    figure; plotRainAndDepth(TT, rain, yvar, reverseY);
+    % xlim([datetime(2025,12,20) datetime(2026,6,10)])   % 雨量のある期間に絞るなら
+end
 
 %% ウォーターカラム(SEGY): 最新の実データ1本をバースト縮約して表示
 f = dir(fullfile(cfg.segyDir, '**', '*.sgy'));

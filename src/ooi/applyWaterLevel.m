@@ -23,10 +23,12 @@ function TT = applyWaterLevel(TT, waterLevelDir)
     TThydro = sortrows(unique(TThydro));
 
     % --- 毎秒の TT と同期し、分→秒の欠損を線形内挿 ---
+    % 分データの短い抜けだけ埋める. 範囲外(端)の外挿や長い欠測の内挿はしない（sediment は NaN になる）.
     TT = synchronize(TT, TThydro);
     sp = TT.Properties.RowTimes;
     for v = ["wl","Qin","rain","Qout","Qhp2"]
-        TT.(v) = fillmissing(TT.(v), 'linear', 'SamplePoints', sp);
+        TT.(v) = fillmissing(TT.(v), 'linear', 'SamplePoints', sp, ...
+                             'EndValues', 'none', 'MaxGap', minutes(10));
     end
 
     % --- 堆積層厚 = 水位 - 水深 ---

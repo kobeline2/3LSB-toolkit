@@ -37,6 +37,7 @@ function cfg = siteConfig(site)
             cfg.clockShifts = struct( ...
                 'range', [datetime(2026,6,9) datetime(2026,7,23)], ...
                 'shift', days(1));
+            cfg.rainDir       = fullfile(cfg.root, "rain");   % ARR Rajamandala の雨量 xlsx（2025-12-27〜）
 
         case "ngoiphat"  % NgoiPhat ダム（データ配置後にフォルダ名を確認）
             cfg.name          = "NgoiPhat";
@@ -50,6 +51,7 @@ function cfg = siteConfig(site)
     end
 
     if ~isfield(cfg, 'clockShifts'), cfg.clockShifts = []; end   % 既定: 時計補正なし
+    if ~isfield(cfg, 'rainDir'),     cfg.rainDir     = "";  end   % 既定: 雨量データなし
 
     cfg.site      = lower(string(site));
     cfg.mergedMat = fullfile(cfg.root, "merged_timeseries.mat");

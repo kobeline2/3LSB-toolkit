@@ -37,6 +37,12 @@ function [dt, val, src] = readLogFile(fn)
     T.TimeStr = strtrim(T.TimeStr);
     T.Unit    = strtrim(T.Unit);
 
+    % 形式の違うファイル（2024年の船上調査ログ "11:32:37.20, 17.89, X,..., Y,..." など）はスキップ
+    if ~any(matches(T.DateStr, digitsPattern(4) + "/" + digitsPattern(2) + "/" + digitsPattern(2)))
+        warning('スキップ：形式が期待と違う: %s', fn);
+        return;
+    end
+
     % --- 行の日時を組み立て
     % 通常行：YYYY/MM/DD + HH:MM:SS
     % 例外行：0001/01/01, 00:00:00 はファイル名の時刻 + (行番号-1)秒
